@@ -7,13 +7,13 @@ with TypeScript, React, Express, and Claude.
 
 ## Status
 
-The M0 Echo walking skeleton (see
-[docs/milestones/M0_DESIGN.md](docs/milestones/M0_DESIGN.md)) has been
-implemented on the `m0-echo-walking-skeleton` branch and passes local
-type-checking, the automated test suite, and manual CLI validation — all
-without a live Anthropic API key or network access. It has not yet been
-committed, reviewed, or merged; the post-M0 architecture review described in
-[docs/Roadmap.md](docs/Roadmap.md) has not been written yet.
+M0 (the Echo walking skeleton, CLI-only) is complete and merged; see
+[docs/reviews/M0_ARCHITECTURE_REVIEW.md](docs/reviews/M0_ARCHITECTURE_REVIEW.md).
+M1 (an HTTP input adapter over the same application boundary — see
+[docs/milestones/M1_DESIGN.md](docs/milestones/M1_DESIGN.md)) has been
+implemented on the `m1-http-adapter` branch and passes local type-checking
+and the automated test suite, all without a live Anthropic API key or
+network access. It has not yet been reviewed or merged.
 
 ## Approach
 
@@ -73,6 +73,50 @@ run as part of this implementation:
 
 ```
 npm run --silent smoke:anthropic -- --workspace echo --input "Hello"
+```
+
+## Running the HTTP server
+
+The HTTP server exposes the same `executeWorkspace` use case as the CLI,
+over `POST /v1/runs`. Unlike the CLI, the server's `AI_PROVIDER` is
+**required — there is no default** — so a forgotten configuration fails
+loudly at startup instead of silently serving fake responses:
+
+```
+AI_PROVIDER=fake npm run start
+```
+
+This binds to `127.0.0.1:3000` (override the port with `PORT`). To
+explicitly select the real Anthropic provider instead, set both:
+
+```
+AI_PROVIDER=anthropic ANTHROPIC_API_KEY=sk-... npm run start
+```
+
+**Provider selection is a server-owned configuration decision — it cannot be
+supplied in HTTP request data.** A request containing a `provider`, `model`,
+or any field beyond `workspaceId`/`input` is rejected with a `400
+VALIDATION_ERROR`. The live Anthropic path remains optional here too, and
+has not been validated as part of this implementation unless a real smoke
+test is deliberately run later with a valid key.
+
+Request/response example:
+
+```
+POST /v1/runs
+Content-Type: application/json
+
+{ "workspaceId": "echo", "input": "Hello" }
+```
+
+```json
+{ "output": "Echo: Hello" }
+```
+
+```
+curl -i -X POST -H "Content-Type: application/json" \
+  -d '{"workspaceId":"echo","input":"Hello"}' \
+  http://127.0.0.1:3000/v1/runs
 ```
 
 ## Documentation
