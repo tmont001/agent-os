@@ -50,6 +50,18 @@ describe("createApp", () => {
     });
   });
 
+  describe("job-application-review workspace", () => {
+    it("returns 200 for a valid job-application-review request", async () => {
+      const response = await supertest(buildApp())
+        .post("/v1/runs")
+        .set("Content-Type", "application/json")
+        .send({ workspaceId: "job-application-review", input: "Hello" });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ output: "Echo: Hello" });
+    });
+  });
+
   describe("shape validation", () => {
     it("returns 400 VALIDATION_ERROR for a missing body", async () => {
       const response = await supertest(buildApp())

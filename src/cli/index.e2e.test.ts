@@ -45,6 +45,23 @@ describe("CLI (end-to-end, fake provider)", () => {
   );
 
   it(
+    "succeeds with the job-application-review workspace and the fake provider: exit 0",
+    () => {
+      const { status, stdout, stderr } = runCli([
+        "--workspace",
+        "job-application-review",
+        "--input",
+        "Hello",
+      ]);
+
+      expect(status).toBe(0);
+      expect(stdout).toBe("Echo: Hello\n");
+      expect(stderr).toBe("");
+    },
+    20_000
+  );
+
+  it(
     "reports a deliberate fake-provider failure: exit 1, empty stdout, one safe stderr line",
     () => {
       const { status, stdout, stderr } = runCli([

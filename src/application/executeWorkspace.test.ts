@@ -3,6 +3,7 @@ import { executeWorkspace } from "./executeWorkspace.js";
 import { FakeAIProvider } from "../providers/FakeAIProvider.js";
 import { resolveWorkspace } from "../workspaces/resolveWorkspace.js";
 import { echoWorkspace } from "../workspaces/echoWorkspace.js";
+import { jobApplicationReviewWorkspace } from "../workspaces/jobApplicationReviewWorkspace.js";
 import type { AIProvider, AIProviderResult } from "../providers/AIProvider.js";
 
 function recordingProvider(result: AIProviderResult): {
@@ -106,6 +107,20 @@ describe("executeWorkspace", () => {
 
     expect(generate).toHaveBeenCalledWith({
       instructions: echoWorkspace.instructions,
+      input: "Hello",
+    });
+  });
+
+  it("passes the job-application-review workspace's exact instructions through to the provider request", async () => {
+    const { provider, generate } = recordingProvider({ ok: true, output: "unused" });
+
+    await executeWorkspace(
+      { workspaceId: "job-application-review", userInput: "Hello" },
+      { resolveWorkspace, aiProvider: provider }
+    );
+
+    expect(generate).toHaveBeenCalledWith({
+      instructions: jobApplicationReviewWorkspace.instructions,
       input: "Hello",
     });
   });
