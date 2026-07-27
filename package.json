@@ -1,0 +1,25 @@
+{
+  "name": "agent-os",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "agent": "tsx src/cli/index.ts",
+    "smoke:anthropic": "node --env-file-if-exists=.env --import=tsx src/cli/index.ts --provider anthropic"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.115.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "tsx": "^4.23.1",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
+  }
+}

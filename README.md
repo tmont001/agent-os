@@ -7,10 +7,13 @@ with TypeScript, React, Express, and Claude.
 
 ## Status
 
-This project is currently in the **architecture / documentation phase**. No
-application code has been written yet, and no milestone has been started.
-Architecture and planning decisions are being recorded before any
-implementation begins.
+The M0 Echo walking skeleton (see
+[docs/milestones/M0_DESIGN.md](docs/milestones/M0_DESIGN.md)) has been
+implemented on the `m0-echo-walking-skeleton` branch and passes local
+type-checking, the automated test suite, and manual CLI validation — all
+without a live Anthropic API key or network access. It has not yet been
+committed, reviewed, or merged; the post-M0 architecture review described in
+[docs/Roadmap.md](docs/Roadmap.md) has not been written yet.
 
 ## Approach
 
@@ -42,6 +45,35 @@ The repository will be organized as a single native npm workspace monorepo
 The exact package layout is intentionally not finalized yet — see
 [docs/Architecture.md](docs/Architecture.md) for what's decided versus still
 open.
+
+## Running the M0 CLI
+
+After `npm install`:
+
+```
+npm run typecheck
+npm test
+npm run --silent agent -- --workspace echo --input "Hello"
+```
+
+`--silent` suppresses npm's own script-header output, so stdout matches
+exactly what the CLI itself prints (`Echo: Hello`).
+
+`npm run agent` defaults to the offline `FakeAIProvider` and requires no
+configuration. `--provider anthropic` requires `ANTHROPIC_API_KEY` (see
+`.env.example`) and is otherwise identical:
+
+```
+npm run --silent agent -- --workspace echo --input "Hello" --provider anthropic
+```
+
+A manual, network-using smoke test for the real Anthropic adapter is
+available separately and is never run as part of `npm test`. It has not been
+run as part of this implementation:
+
+```
+npm run --silent smoke:anthropic -- --workspace echo --input "Hello"
+```
 
 ## Documentation
 
