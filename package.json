@@ -6,6 +6,9 @@
   "engines": {
     "node": ">=24 <25"
   },
+  "workspaces": [
+    "apps/web"
+  ],
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -13,7 +16,13 @@
     "agent": "tsx src/cli/index.ts",
     "smoke:anthropic": "node --env-file-if-exists=.env --import=tsx src/cli/index.ts --provider anthropic",
     "start": "node --env-file-if-exists=.env --import=tsx src/http/server.ts",
-    "dev": "node --env-file-if-exists=.env --watch --import=tsx src/http/server.ts"
+    "dev": "node --env-file-if-exists=.env --watch --import=tsx src/http/server.ts",
+    "dev:web": "npm run dev --workspace apps/web",
+    "typecheck:web": "npm run typecheck --workspace apps/web",
+    "test:web": "npm run test --workspace apps/web",
+    "build:web": "npm run build --workspace apps/web",
+    "typecheck:all": "npm run typecheck && npm run typecheck:web",
+    "test:all": "npm test && npm run test:web"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",

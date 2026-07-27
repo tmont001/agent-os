@@ -119,6 +119,27 @@ curl -i -X POST -H "Content-Type: application/json" \
   http://127.0.0.1:3000/v1/runs
 ```
 
+## Run the web interface locally
+
+M3 adds a minimal React client (`apps/web`) that submits one job-application
+response to the `job-application-review` workspace through the existing
+`POST /v1/runs` endpoint. It talks to the API through a local Vite dev
+proxy, so no CORS change or backend code change was needed. Use two
+terminals:
+
+```
+# Terminal 1
+AI_PROVIDER=fake npm run dev
+
+# Terminal 2
+npm run dev:web
+```
+
+Open the URL Vite prints (typically `http://localhost:5173`). The
+`AI_PROVIDER=fake` provider validates the visual/API path only — it does not
+generate a genuine job-application critique. A real Anthropic smoke test is
+a separate, deliberate step and is not part of M3 validation.
+
 ## Documentation
 
 - [Vision](docs/Vision.md) — what Agent OS is and why it exists
