@@ -1,10 +1,15 @@
 # Roadmap
 
-Status: M0 through M3 are complete, reviewed, and merged to `main`. A
+Status: M0 through M4 are complete, reviewed, and merged to `main`. A
 post-M3 live-Anthropic validation checkpoint has also been completed
-manually. M4 is defined below as the recommended next milestone; everything
-after M4 remains provisional or explicitly deferred, per
+manually. M5 is defined below as the next milestone; everything after M5
+remains provisional or explicitly deferred, per
 [Architecture.md](Architecture.md) and [PROJECT_RULES.md](PROJECT_RULES.md).
+
+**Central goal (unchanged since Vision.md):** recurring AI work becomes
+tested, controlled, reusable workflows — not one-off chat sessions. Each
+milestone should move Agent OS closer to that, not merely add a feature for
+its own sake.
 
 ## Completed
 
@@ -77,77 +82,94 @@ web client (`AI_PROVIDER=anthropic`) and succeeded. Notes:
 This closes the "live Anthropic path unvalidated" follow-up item disclosed
 in the M0 and M1 reviews.
 
+### M4 — Workspace Catalog and Generic Runner
+
+A second, genuine user-facing workspace (`research-brief`) joins
+`job-application-review`, alongside a safe public metadata contract
+(`WorkspacePublicMetadata`: `id`/`displayName`/`description` only — never
+instructions) kept deliberately separate from `WorkspaceDefinition`.
+`GET /v1/workspaces` lists both, deterministically ordered, excluding the
+internal-only Echo workspace; `POST /v1/runs` is unchanged. The React client
+became a generic, catalog-driven runner (workspace selector, per-workspace
+copy, switch-safety invariants) instead of a client hardcoded to one
+workspace — proving Agent OS is a genuine multi-workspace platform. See
+[docs/reviews/M4_ARCHITECTURE_REVIEW.md](reviews/M4_ARCHITECTURE_REVIEW.md)
+— **VALIDATED**.
+
 ## Next
 
-### M4 — Workspace Catalog and Second User-Facing Workspace
+### M5 — Run Records, Local Persistence, and History
 
-**Goal:** move the web client from one hardcoded workspace toward a generic
-workspace runner, while preserving `POST /v1/runs` exactly as M0–M3 built it
-— no change to `executeWorkspace`, the `AIProvider` port, or the
-request/response contract's core shape. A selector is only meaningful once
-the catalog holds at least two genuine user-facing workspaces, so M4 adds
-the second one rather than shipping a selector over a catalog of one.
+**Goal:** give Agent OS local run identity, persistence, and history —
+every successful run is durably saved (`id`, `workspaceId`, `input`,
+`output`, `createdAt`) so a user can revisit past output without
+re-running, without touching the validated
+`executeWorkspace`/`AIProvider`/`WorkspaceDefinition` boundaries.
+`POST /v1/runs`'s success response gains `runId`/`persisted`; its request
+body is unchanged.
 
 **Likely included scope:**
 
-- `job-application-review` remains the first user-facing workspace,
-  unchanged in behavior.
-- Exactly one second, meaningful user-facing workspace, selected during M4
-  design — not a placeholder.
-- Echo remains an internal developer/reference workspace and is **not**
-  shown in the user-facing catalog.
-- A safe public workspace metadata contract (e.g. id + display
-  name/description) that must not expose instructions or internal config.
-  `WorkspaceDefinition` is not automatically extended to carry this — M4
-  design must evaluate whether public metadata belongs in a separate type
-  instead.
-- A backend endpoint for listing the (catalog-eligible) available
-  workspaces, built the same evidence-gated way as `POST /v1/runs` was.
-- A workspace selector in the React client, replacing the hardcoded
-  `WORKSPACE_ID` constant in `App.tsx`, making it a generic runner rather
-  than one bound to `job-application-review`.
+- A transport-neutral `RunStore` port with an `InMemoryRunStore` (tests)
+  and a `SqliteRunStore` adapter using Node 24's built-in `node:sqlite` —
+  no new dependency.
+- Only successful runs are persisted; a provider failure creates no
+  record, and a persistence failure never discards a successfully
+  generated output (`persisted: false`, output still returned, HTTP `200`).
+- `GET /v1/runs`, `GET /v1/runs/:id`, `DELETE /v1/runs/:id`, with safe,
+  minimal shapes — list entries never carry full input/output.
+- A small history view in the React client (list, detail, permanent
+  delete) as local view state — no new router, dependency, or UI framework.
+- Explicit local-only privacy documentation: single-user, no encryption at
+  rest, not suitable for shared/production use without authentication and
+  storage hardening.
 
-**Explicitly excluded from M4:**
+**Explicitly excluded from M5:** authentication, multiple users, cloud
+sync, sharing, search, filters, pagination, tags, folders, editing saved
+runs, rerunning history, failed-run persistence, provider/model metadata,
+prompt/instruction persistence, prompt versioning, tools, memory,
+multi-agent planning, deployment, PostgreSQL, encryption claims.
 
-- Persistence.
-- Run history.
-- Authentication.
-- Tool calling.
-- Memory.
-- Multi-agent planning.
-- Deployment.
-- User-created workspaces.
-- Dynamic plugin loading.
-- Client-selected AI provider or model (provider selection stays
-  server-owned, per M1's validated security/cost boundary).
+**Important framing:** persistence improves durability and makes Agent OS
+feel like a real tool rather than a disposable chat session, but it is
+**not by itself** the final differentiation from general-purpose products
+like ChatGPT or Claude, which already let a user scroll back through past
+conversations. The differentiating bet is repeatable, controlled,
+tool-backed workflows (see M6 below); M5 is infrastructure toward that, not
+the destination.
 
-A short `M4_DESIGN.md`, matching the pattern of M1–M3's design docs, is
-expected before implementation begins, and should confirm from source
-(not assumption) whatever new endpoint/contract shape it proposes.
+See [docs/milestones/M5_DESIGN.md](milestones/M5_DESIGN.md) for the full
+design (RunRecord/RunStore shape, SQLite adapter, HTTP contracts, and
+frontend approach), confirmed from source, not assumption.
 
-M4 is not implemented by this document.
+M5 is not implemented by this document.
 
-## Provisional (beyond M4)
+## Provisional (beyond M5)
 
 Real candidates for future milestones, not yet scoped or scheduled. None of
 these should be treated as committed work until a design doc for the
 specific milestone exists:
 
-- **Persistence and run history** — a generated run identifier and a store
-  for past runs; first raised as an M1 option and deferred each milestone
-  since, pending an actual consumer that needs to correlate runs.
-- **Tool execution** — tool calling and tool-execution infrastructure,
-  excluded from every milestone so far; would require its own design pass
-  once a workspace genuinely needs it.
-- **Authentication and deployment** — both explicitly out of scope through
-  M4; production hosting of `apps/web` was already named as deferred in
-  `docs/milestones/M3_DESIGN.md`.
-- **Prompt/workspace management** — anything beyond the current
-  compile-time `{ id, instructions }` shape (e.g. editing, versioning, or
-  authoring workspaces at runtime) — only justified once M4's catalog work
-  reveals a concrete need.
-- **Additional AI providers** — only the Anthropic/Fake boundary has been
-  built; a third provider remains purely hypothetical.
+- **M6 — first tool-backed workflow (likely direction).** The most
+  plausible next differentiator: give one workspace a real tool call, not
+  just a text-in/text-out prompt, proving Agent OS can run controlled,
+  repeatable work beyond conversation — the core bet named in
+  [Vision.md](Vision.md). Scope (which tool, which workspace, what
+  execution/approval model) is undecided until M5 closes and its own
+  design pass happens.
+- **Authentication and deployment** — still out of scope through M5;
+  required before any shared/production use of run history.
+- **Evaluation/quality tooling** — systematic checking of workspace output
+  quality (beyond the existing Fake-provider integration tests) — no
+  concrete consumer yet.
+- **Production hardening** — encryption at rest, multi-user storage,
+  backup/restore for run history — only justified once a real deployment
+  target exists.
+- **Prompt/workspace management** — editing, versioning, or authoring
+  workspaces at runtime — beyond the current compile-time `{ id,
+  instructions }` shape.
+- **Additional AI providers** — only the Anthropic/Fake boundary exists; a
+  third provider remains hypothetical.
 
 ## Explicitly deferred (not on this roadmap yet)
 
@@ -156,5 +178,6 @@ specific milestone exists:
 - Client-selected AI provider/model configuration (server-owned by design,
   validated in M1 — not expected to change).
 - Memory and multi-agent planning.
-- Dynamic workspace plugin loading and user-created workspaces (also called
-  out as explicit M4 exclusions above).
+- Dynamic workspace plugin loading and user-created workspaces.
+- Authentication, multi-user support, and cloud sync (also explicit M5
+  exclusions above).
