@@ -119,13 +119,36 @@ curl -i -X POST -H "Content-Type: application/json" \
   http://127.0.0.1:3000/v1/runs
 ```
 
+### Listing the public workspace catalog
+
+`GET /v1/workspaces` returns the read-only, deterministic list of
+user-facing workspaces (no query params, no auth):
+
+```
+curl -s http://127.0.0.1:3000/v1/workspaces
+```
+
+```json
+{
+  "workspaces": [
+    { "id": "job-application-review", "displayName": "Job Application Review", "description": "..." },
+    { "id": "research-brief", "displayName": "Research Brief", "description": "..." }
+  ]
+}
+```
+
+The `echo` workspace remains resolvable via `POST /v1/runs` (used internally
+and by the CLI) but is intentionally excluded from this catalog — it is a
+reference/developer workspace, not a user-facing one.
+
 ## Run the web interface locally
 
-M3 adds a minimal React client (`apps/web`) that submits one job-application
-response to the `job-application-review` workspace through the existing
-`POST /v1/runs` endpoint. It talks to the API through a local Vite dev
-proxy, so no CORS change or backend code change was needed. Use two
-terminals:
+`apps/web` is a generic workspace runner: on load it fetches
+`GET /v1/workspaces` and shows a selector over the two current user-facing
+workspaces — **Job Application Review** (default) and **Research Brief** —
+then submits the selected id to the existing `POST /v1/runs` endpoint. It
+talks to the API through a local Vite dev proxy, so no CORS change or
+backend code change was needed. Use two terminals:
 
 ```
 # Terminal 1
@@ -137,8 +160,8 @@ npm run dev:web
 
 Open the URL Vite prints (typically `http://localhost:5173`). The
 `AI_PROVIDER=fake` provider validates the visual/API path only — it does not
-generate a genuine job-application critique. A real Anthropic smoke test is
-a separate, deliberate step and is not part of M3 validation.
+generate a genuine critique or brief. A real Anthropic smoke test is a
+separate, deliberate step and is not part of automated validation.
 
 ## Documentation
 
