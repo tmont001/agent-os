@@ -1,9 +1,9 @@
 /**
- * The only module in apps/web that calls fetch. Mirrors the POST /v1/runs
- * contract exactly as implemented in src/http/runRequestSchema.ts,
+ * The only module in apps/web that calls fetch for POST /v1/runs. Mirrors
+ * that contract exactly as implemented in src/http/runRequestSchema.ts,
  * src/http/runsRoute.ts, and src/http/mapErrorToResponse.ts — see
- * docs/milestones/M3_DESIGN.md Section 2. These types are local to the web
- * app on purpose (no shared DTO package in M3).
+ * docs/milestones/M5_DESIGN.md Section 6. These types are local to the web
+ * app on purpose (no shared DTO package).
  */
 
 export interface RunRequest {
@@ -11,8 +11,10 @@ export interface RunRequest {
   readonly input: string;
 }
 
-export interface RunSuccess {
+export interface RunSuccessBody {
   readonly output: string;
+  readonly runId: string | null;
+  readonly persisted: boolean;
 }
 
 export interface RunErrorBody {
@@ -24,7 +26,7 @@ export interface RunErrorBody {
 }
 
 export type RunResult =
-  | { readonly ok: true; readonly output: string }
+  | { readonly ok: true; readonly output: string; readonly runId: string | null; readonly persisted: boolean }
   | { readonly ok: false; readonly message: string };
 
 const GENERIC_ERROR_MESSAGE = "Something went wrong. Please try again.";
@@ -40,6 +42,29 @@ function isRunErrorBody(value: unknown): value is RunErrorBody {
     "message" in error &&
     typeof (error as { message: unknown }).message === "string"
   );
+}
+
+/**
+ * Validates every field and their cross-field consistency: persisted:true
+ * requires a non-empty-string runId; persisted:false requires runId to be
+ * exactly null. Any other combination (missing field, wrong type, a
+ * runId/persisted mismatch) is malformed.
+ */
+function isRunSuccessBody(value: unknown): value is RunSuccessBody {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const candidate = value as Record<string, unknown>;
+
+  if (typeof candidate.output !== "string" || typeof candidate.persisted !== "boolean") {
+    return false;
+  }
+
+  if (candidate.persisted) {
+    return typeof candidate.runId === "string" && candidate.runId.length > 0;
+  }
+
+  return candidate.runId === null;
 }
 
 export async function runWorkspace(request: RunRequest): Promise<RunResult> {
@@ -68,14 +93,9 @@ export async function runWorkspace(request: RunRequest): Promise<RunResult> {
     return { ok: false, message: GENERIC_ERROR_MESSAGE };
   }
 
-  if (
-    typeof body !== "object" ||
-    body === null ||
-    !("output" in body) ||
-    typeof (body as { output: unknown }).output !== "string"
-  ) {
+  if (!isRunSuccessBody(body)) {
     return { ok: false, message: GENERIC_ERROR_MESSAGE };
   }
 
-  return { ok: true, output: (body as RunSuccess).output };
+  return { ok: true, output: body.output, runId: body.runId, persisted: body.persisted };
 }

@@ -10,6 +10,13 @@
   --color-error-border: #e3b7a8;
   --color-error-text: #8a3420;
 
+  --color-warning-bg: #fbf3e2;
+  --color-warning-border: #e6cd9a;
+  --color-warning-text: #7a5a12;
+
+  --color-danger: #a3311c;
+  --color-danger-hover: #832617;
+
   --font-display: ui-serif, Georgia, "Times New Roman", serif;
   --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
     sans-serif;
@@ -56,6 +63,12 @@ body {
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--color-accent);
+}
+
+.header-controls {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.85rem;
 }
 
 .workspace-select-row {
@@ -217,6 +230,14 @@ body {
   text-align: left;
 }
 
+.local-save-disclosure {
+  margin: 0.4rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  text-align: left;
+}
+
 .submit-button:hover:not(:disabled) {
   background: var(--color-accent-hover);
 }
@@ -269,6 +290,16 @@ body {
   color: var(--color-error-text);
 }
 
+.status-message--warning {
+  margin-top: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: var(--color-warning-bg);
+  border: 1px solid var(--color-warning-border);
+  border-radius: 4px;
+  color: var(--color-warning-text);
+  font-size: 0.9rem;
+}
+
 .results-heading {
   margin: 0 0 1rem;
   font-family: var(--font-display);
@@ -287,6 +318,226 @@ body {
   word-wrap: break-word;
 }
 
+/* Buttons shared by the runner header and the history view */
+
+.secondary-button {
+  appearance: none;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-panel);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 0.6rem 1rem;
+  cursor: pointer;
+  transition: border-color 150ms ease, background-color 150ms ease;
+}
+
+.secondary-button:hover:not(:disabled) {
+  border-color: var(--color-accent);
+}
+
+.secondary-button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.secondary-button:disabled {
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+
+.history-nav-button {
+  align-self: flex-end;
+}
+
+/* Delete stays a quiet text-style control until confirmation is requested,
+   so it never dominates the detail view. */
+.delete-button {
+  appearance: none;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-danger);
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 0.6rem 0.9rem;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.delete-button:hover:not(:disabled) {
+  background: var(--color-error-bg);
+}
+
+.delete-button:focus-visible {
+  outline: 2px solid var(--color-danger);
+  outline-offset: 2px;
+}
+
+.delete-button--confirm {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+  color: #fdfcf9;
+}
+
+.delete-button--confirm:hover:not(:disabled) {
+  background: var(--color-danger-hover);
+}
+
+.delete-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.delete-confirm {
+  margin-top: 0.75rem;
+  padding: 1rem;
+  border: 1px solid var(--color-danger);
+  border-radius: 4px;
+  background: var(--color-error-bg);
+}
+
+.delete-confirm-copy {
+  margin: 0 0 0.85rem;
+  color: var(--color-error-text);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.delete-confirm-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+/* Run history view */
+
+.history-view {
+  max-width: 46rem;
+  margin: 0 auto;
+}
+
+.history-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.history-disclosure {
+  margin: 0 0 1.5rem;
+  padding: 0.875rem 1rem;
+  background: var(--color-panel);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  line-height: 1.55;
+}
+
+.history-list-panel,
+.history-detail-panel {
+  padding: 0;
+  overflow: hidden;
+}
+
+.history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.history-list li + li {
+  border-top: 1px solid var(--color-border);
+}
+
+.history-row {
+  appearance: none;
+  width: 100%;
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: 1rem 1.25rem;
+  cursor: pointer;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem 0.75rem;
+  font-family: var(--font-body);
+  color: var(--color-text);
+  transition: background-color 150ms ease;
+}
+
+.history-row:hover {
+  background: var(--color-bg);
+}
+
+.history-row:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+.history-row-workspace {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.history-row-timestamp {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.history-row-preview {
+  flex-basis: 100%;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.history-detail-panel {
+  padding: 1.75rem;
+}
+
+.history-detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.history-detail-field {
+  margin-bottom: 1.25rem;
+}
+
+.history-detail-field .field-label {
+  margin-bottom: 0.4rem;
+}
+
+.history-detail-text {
+  margin: 0;
+  padding: 0.875rem 1rem;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--color-text);
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.history-detail-actions {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 1.5rem;
+}
+
 @media (min-width: 900px) {
   .workspace {
     grid-template-columns: 1fr 1fr;
@@ -303,6 +554,12 @@ body {
     flex-direction: column;
     align-items: stretch;
     gap: 0.85rem;
+  }
+
+  .header-controls {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.6rem;
   }
 
   .workspace-select-row {
@@ -329,5 +586,31 @@ body {
     margin-top: 1rem;
     font-size: 0.85rem;
     line-height: 1.6;
+  }
+
+  .history-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .history-nav-button {
+    align-self: stretch;
+  }
+
+  .history-row {
+    padding: 0.85rem 1rem;
+  }
+
+  .history-detail-panel {
+    padding: 1.125rem;
+  }
+
+  .history-detail-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .delete-confirm-actions {
+    flex-direction: column;
   }
 }

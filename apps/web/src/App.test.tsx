@@ -37,13 +37,32 @@ function buildFetchMock(
   options: {
     catalog?: () => Promise<Response>;
     run?: () => Promise<Response>;
+    history?: () => Promise<Response>;
   } = {}
 ) {
   const catalogImpl = options.catalog ?? (() => Promise.resolve(jsonResponse(200, DEFAULT_CATALOG)));
   const runImpl =
-    options.run ?? (() => Promise.resolve(jsonResponse(200, { output: "Strong: ..." })));
+    options.run ??
+    (() =>
+      Promise.resolve(jsonResponse(200, { output: "Strong: ...", runId: "run-1", persisted: true })));
+  const historyImpl = options.history ?? (() => Promise.resolve(jsonResponse(200, { runs: [] })));
 
-  return vi.fn((url: string) => (url === "/v1/workspaces" ? catalogImpl() : runImpl()));
+  return vi.fn((url: string, init?: RequestInit) => {
+    if (url === "/v1/workspaces") {
+      return catalogImpl();
+    }
+    if (url === "/v1/runs" && init?.method === "POST") {
+      return runImpl();
+    }
+    if (url === "/v1/runs") {
+      return historyImpl();
+    }
+    return Promise.resolve(
+      jsonResponse(404, {
+        error: { code: "RUN_NOT_FOUND", message: "Run not found.", retryable: false },
+      })
+    );
+  });
 }
 
 function findRunRequestBody(fetchMock: ReturnType<typeof vi.fn>): unknown {
@@ -133,13 +152,20 @@ describe("App", () => {
     await user.click(screen.getByRole("button", { name: "Reviewing…" }));
     expect(fetchMock.mock.calls.filter(([url]) => url === "/v1/runs")).toHaveLength(1);
 
-    resolveRun(jsonResponse(200, { output: "done" }));
+    resolveRun(jsonResponse(200, { output: "done", runId: "run-1", persisted: true }));
     await waitFor(() => expect(screen.getByText("done")).toBeInTheDocument());
   });
 
   it("renders successful output, preserving whitespace", async () => {
     const fetchMock = buildFetchMock({
-      run: () => Promise.resolve(jsonResponse(200, { output: "Strong\n\nClear and specific." })),
+      run: () =>
+        Promise.resolve(
+          jsonResponse(200, {
+            output: "Strong\n\nClear and specific.",
+            runId: "run-1",
+            persisted: true,
+          })
+        ),
     });
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
@@ -214,7 +240,10 @@ describe("App", () => {
   it("renders model output as text, not injected HTML", async () => {
     const maliciousOutput = "<img src=x onerror=alert(1)>Strong section";
     const fetchMock = buildFetchMock({
-      run: () => Promise.resolve(jsonResponse(200, { output: maliciousOutput })),
+      run: () =>
+        Promise.resolve(
+          jsonResponse(200, { output: maliciousOutput, runId: "run-1", persisted: true })
+        ),
     });
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
@@ -357,7 +386,7 @@ describe("App", () => {
 
       expect(screen.getByLabelText("Workspace")).toBeDisabled();
 
-      resolveRun(jsonResponse(200, { output: "done" }));
+      resolveRun(jsonResponse(200, { output: "done", runId: "run-1", persisted: true }));
       await waitFor(() => expect(screen.getByLabelText("Workspace")).not.toBeDisabled());
     });
 
@@ -417,6 +446,217 @@ describe("App", () => {
 
       const alert = await screen.findByRole("alert");
       expect(alert).toHaveTextContent("Unable to load workspaces. Please try again.");
+    });
+  });
+
+  describe("run history navigation", () => {
+    it("shows the runner as the initial view", async () => {
+      vi.stubGlobal("fetch", buildFetchMock());
+      render(<App />);
+
+      await screen.findByRole("heading", { name: "Job Application Review" });
+      expect(screen.getByRole("button", { name: "History" })).toBeInTheDocument();
+    });
+
+    it("opens the history view showing its empty state", async () => {
+      vi.stubGlobal("fetch", buildFetchMock());
+      const user = userEvent.setup();
+      render(<App />);
+
+      await screen.findByRole("heading", { name: "Job Application Review" });
+      await user.click(screen.getByRole("button", { name: "History" }));
+
+      expect(await screen.findByRole("heading", { name: "Run History" })).toBeInTheDocument();
+      expect(await screen.findByText(/No saved runs yet/)).toBeInTheDocument();
+    });
+
+    it("returns to the runner via Back", async () => {
+      vi.stubGlobal("fetch", buildFetchMock());
+      const user = userEvent.setup();
+      render(<App />);
+
+      await screen.findByRole("heading", { name: "Job Application Review" });
+      await user.click(screen.getByRole("button", { name: "History" }));
+      await screen.findByRole("heading", { name: "Run History" });
+
+      await user.click(screen.getByRole("button", { name: "Back to workspace" }));
+
+      expect(
+        await screen.findByRole("heading", { name: "Job Application Review" })
+      ).toBeInTheDocument();
+    });
+
+    it("preserves textarea input across a visit to history", async () => {
+      vi.stubGlobal("fetch", buildFetchMock());
+      const user = userEvent.setup();
+      render(<App />);
+
+      await screen.findByRole("heading", { name: "Job Application Review" });
+      await user.type(screen.getByLabelText("Your input"), "Draft in progress");
+      await user.click(screen.getByRole("button", { name: "History" }));
+      await screen.findByRole("heading", { name: "Run History" });
+      await user.click(screen.getByRole("button", { name: "Back to workspace" }));
+
+      expect(await screen.findByLabelText("Your input")).toHaveValue("Draft in progress");
+    });
+
+    it("preserves the selected workspace across a visit to history", async () => {
+      vi.stubGlobal("fetch", buildFetchMock());
+      const user = userEvent.setup();
+      render(<App />);
+
+      await screen.findByRole("heading", { name: "Job Application Review" });
+      await user.selectOptions(screen.getByLabelText("Workspace"), "research-brief");
+      await user.click(screen.getByRole("button", { name: "History" }));
+      await screen.findByRole("heading", { name: "Run History" });
+      await user.click(screen.getByRole("button", { name: "Back to workspace" }));
+
+      expect(await screen.findByRole("heading", { name: "Research Brief" })).toBeInTheDocument();
+    });
+
+    it("preserves prior output across a visit to history", async () => {
+      vi.stubGlobal("fetch", buildFetchMock());
+      const user = userEvent.setup();
+      render(<App />);
+
+      await screen.findByRole("heading", { name: "Job Application Review" });
+      await user.type(screen.getByLabelText("Your input"), "I led the migration.");
+      await user.click(screen.getByRole("button", { name: "Review response" }));
+      await screen.findByText("Strong: ...");
+
+      await user.click(screen.getByRole("button", { name: "History" }));
+      await screen.findByRole("heading", { name: "Run History" });
+      await user.click(screen.getByRole("button", { name: "Back to workspace" }));
+
+      expect(await screen.findByText("Strong: ...")).toBeInTheDocument();
+    });
+
+    it("disables History navigation while a run is actively loading", async () => {
+      let resolveRun!: (value: Response) => void;
+      const fetchMock = buildFetchMock({
+        run: () =>
+          new Promise<Response>((resolve) => {
+            resolveRun = resolve;
+          }),
+      });
+      vi.stubGlobal("fetch", fetchMock);
+      const user = userEvent.setup();
+      render(<App />);
+
+      await screen.findByRole("heading", { name: "Job Application Review" });
+      await user.type(screen.getByLabelText("Your input"), "I led the migration.");
+      await user.click(screen.getByRole("button", { name: "Review response" }));
+
+      expect(screen.getByRole("button", { name: "History" })).toBeDisabled();
+
+      resolveRun(jsonResponse(200, { output: "done", runId: "run-1", persisted: true }));
+      await waitFor(() =>
+        expect(screen.getByRole("button", { name: "History" })).not.toBeDisabled()
+      );
+    });
+  });
+
+  describe("persistence warning and local-save disclosure", () => {
+    it("shows the standing local-save disclosure near the submit area", async () => {
+      vi.stubGlobal("fetch", buildFetchMock());
+      render(<App />);
+
+      expect(
+        await screen.findByText("Successful results are saved locally on this device.")
+      ).toBeInTheDocument();
+    });
+
+    it("keeps the output and shows a warning when persisted:false", async () => {
+      vi.stubGlobal(
+        "fetch",
+        buildFetchMock({
+          run: () =>
+            Promise.resolve(jsonResponse(200, { output: "Strong: ...", runId: null, persisted: false })),
+        })
+      );
+      const user = userEvent.setup();
+      render(<App />);
+
+      await screen.findByRole("heading", { name: "Job Application Review" });
+      await user.type(screen.getByLabelText("Your input"), "I led the migration.");
+      await user.click(screen.getByRole("button", { name: "Review response" }));
+
+      expect(await screen.findByText("Strong: ...")).toBeInTheDocument();
+      expect(
+        screen.getByText("This result was generated but could not be saved to history.")
+      ).toBeInTheDocument();
+    });
+
+    it("does not show the warning when persisted:true", async () => {
+      vi.stubGlobal("fetch", buildFetchMock());
+      const user = userEvent.setup();
+      render(<App />);
+
+      await screen.findByRole("heading", { name: "Job Application Review" });
+      await user.type(screen.getByLabelText("Your input"), "I led the migration.");
+      await user.click(screen.getByRole("button", { name: "Review response" }));
+
+      await screen.findByText("Strong: ...");
+      expect(
+        screen.queryByText("This result was generated but could not be saved to history.")
+      ).not.toBeInTheDocument();
+    });
+
+    it("clears the warning on the next run", async () => {
+      let callCount = 0;
+      vi.stubGlobal(
+        "fetch",
+        buildFetchMock({
+          run: () => {
+            callCount += 1;
+            const persisted = callCount !== 1;
+            return Promise.resolve(
+              jsonResponse(200, {
+                output: `Result ${callCount}`,
+                runId: persisted ? "run-1" : null,
+                persisted,
+              })
+            );
+          },
+        })
+      );
+      const user = userEvent.setup();
+      render(<App />);
+
+      await screen.findByRole("heading", { name: "Job Application Review" });
+      await user.type(screen.getByLabelText("Your input"), "I led the migration.");
+      await user.click(screen.getByRole("button", { name: "Review response" }));
+      await screen.findByText("This result was generated but could not be saved to history.");
+
+      await user.click(screen.getByRole("button", { name: "Review response" }));
+      await screen.findByText("Result 2");
+
+      expect(
+        screen.queryByText("This result was generated but could not be saved to history.")
+      ).not.toBeInTheDocument();
+    });
+
+    it("clears the warning when switching workspaces", async () => {
+      vi.stubGlobal(
+        "fetch",
+        buildFetchMock({
+          run: () =>
+            Promise.resolve(jsonResponse(200, { output: "Strong: ...", runId: null, persisted: false })),
+        })
+      );
+      const user = userEvent.setup();
+      render(<App />);
+
+      await screen.findByRole("heading", { name: "Job Application Review" });
+      await user.type(screen.getByLabelText("Your input"), "I led the migration.");
+      await user.click(screen.getByRole("button", { name: "Review response" }));
+      await screen.findByText("This result was generated but could not be saved to history.");
+
+      await user.selectOptions(screen.getByLabelText("Workspace"), "research-brief");
+
+      expect(
+        screen.queryByText("This result was generated but could not be saved to history.")
+      ).not.toBeInTheDocument();
     });
   });
 });
