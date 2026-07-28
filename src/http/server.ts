@@ -2,10 +2,12 @@ import { createApp } from "./createApp.js";
 import { resolveWorkspace } from "../workspaces/resolveWorkspace.js";
 import { listWorkspaceCatalog } from "../workspaces/workspaceCatalog.js";
 import { FakeAIProvider } from "../providers/FakeAIProvider.js";
+import { SqliteRunStore } from "../runs/SqliteRunStore.js";
 import type { AIProvider } from "../providers/AIProvider.js";
 
 const HOST = "127.0.0.1";
 const DEFAULT_PORT = 3000;
+const DEFAULT_RUN_STORE_PATH = "data/runs.sqlite3";
 
 /**
  * The only file that reads process.env or calls app.listen(). Configuration
@@ -30,6 +32,11 @@ function readPort(): number | undefined {
   }
 
   return parsed;
+}
+
+function readRunStorePath(): string {
+  const raw = process.env.RUN_STORE_PATH;
+  return raw === undefined || raw === "" ? DEFAULT_RUN_STORE_PATH : raw;
 }
 
 async function buildAiProvider(): Promise<AIProvider | undefined> {
@@ -74,7 +81,12 @@ async function main(): Promise<void> {
     return;
   }
 
-  const app = createApp({ resolveWorkspace, aiProvider, listWorkspaceCatalog });
+  // Constructed once for the process lifetime. A failure here (unsupported
+  // schema version, unwritable path, etc.) must fail startup rather than
+  // silently run without persistence — it propagates to main().catch below.
+  const runStore = new SqliteRunStore(readRunStorePath());
+
+  const app = createApp({ resolveWorkspace, aiProvider, listWorkspaceCatalog, runStore });
   const httpServer = app.listen(port, HOST, () => {
     process.stdout.write(`Agent OS HTTP server listening on http://${HOST}:${port}\n`);
   });

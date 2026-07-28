@@ -12,6 +12,7 @@ export type HttpErrorCode =
   | "PAYLOAD_TOO_LARGE"
   | "ROUTE_NOT_FOUND"
   | "METHOD_NOT_ALLOWED"
+  | "RUN_NOT_FOUND"
   | "UNEXPECTED";
 
 /**
@@ -43,6 +44,7 @@ const HTTP_ERROR_MESSAGES: Readonly<Record<HttpErrorCode, string>> = {
   PAYLOAD_TOO_LARGE: "Request body is too large.",
   ROUTE_NOT_FOUND: "Route not found.",
   METHOD_NOT_ALLOWED: "Method not allowed.",
+  RUN_NOT_FOUND: "Run not found.",
   UNEXPECTED: "An unexpected error occurred.",
 };
 
@@ -53,6 +55,7 @@ const HTTP_ERROR_STATUS: Readonly<Record<HttpErrorCode, number>> = {
   PAYLOAD_TOO_LARGE: 413,
   ROUTE_NOT_FOUND: 404,
   METHOD_NOT_ALLOWED: 405,
+  RUN_NOT_FOUND: 404,
   UNEXPECTED: 500,
 };
 

@@ -2,9 +2,15 @@ import express, { type Express, type NextFunction, type Request, type Response }
 import type { AIProvider } from "../providers/AIProvider.js";
 import type { WorkspaceDefinition } from "../workspaces/WorkspaceDefinition.js";
 import type { WorkspacePublicMetadata } from "../workspaces/workspaceCatalog.js";
+import type { RunStore } from "../runs/RunStore.js";
 import { mapHttpErrorToResponse, type HttpErrorCode } from "./mapErrorToResponse.js";
 import { createRunsRouteHandler } from "./runsRoute.js";
 import { createWorkspacesRouteHandler } from "./workspacesRoute.js";
+import {
+  createDeleteRunRouteHandler,
+  createGetRunRouteHandler,
+  createListRunsRouteHandler,
+} from "./runHistoryRoute.js";
 
 const MAX_BODY_SIZE = "16kb";
 
@@ -12,6 +18,7 @@ export interface CreateAppDependencies {
   readonly resolveWorkspace: (id: string) => WorkspaceDefinition | undefined;
   readonly aiProvider: AIProvider;
   readonly listWorkspaceCatalog: () => readonly WorkspacePublicMetadata[];
+  readonly runStore: RunStore;
 }
 
 interface BodyParserError extends Error {
@@ -64,6 +71,9 @@ export function createApp(deps: CreateAppDependencies): Express {
 
   const runsRouteHandler = createRunsRouteHandler(deps);
   const workspacesRouteHandler = createWorkspacesRouteHandler(deps);
+  const listRunsRouteHandler = createListRunsRouteHandler(deps);
+  const getRunRouteHandler = createGetRunRouteHandler(deps);
+  const deleteRunRouteHandler = createDeleteRunRouteHandler(deps);
 
   // Media-type check, JSON body parsing (16kb limit, strict top-level
   // shape), then the handler.
@@ -74,10 +84,22 @@ export function createApp(deps: CreateAppDependencies): Express {
     runsRouteHandler
   );
 
+  // Read-only run-history list — no body, no params.
+  app.get("/v1/runs", listRunsRouteHandler);
+
   // Any other method on this same path.
   app.all("/v1/runs", (_req: Request, res: Response) => {
     const { status, body } = mapHttpErrorToResponse("METHOD_NOT_ALLOWED");
-    res.status(status).set("Allow", "POST").json(body);
+    res.status(status).set("Allow", "GET, POST").json(body);
+  });
+
+  // A single saved run — read or permanently delete, no body.
+  app.get("/v1/runs/:id", getRunRouteHandler);
+  app.delete("/v1/runs/:id", deleteRunRouteHandler);
+
+  app.all("/v1/runs/:id", (_req: Request, res: Response) => {
+    const { status, body } = mapHttpErrorToResponse("METHOD_NOT_ALLOWED");
+    res.status(status).set("Allow", "GET, DELETE").json(body);
   });
 
   // Read-only catalog of user-facing workspaces — no body, no params.
