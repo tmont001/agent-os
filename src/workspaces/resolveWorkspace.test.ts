@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { resolveWorkspace } from "./resolveWorkspace.js";
 import { echoWorkspace } from "./echoWorkspace.js";
 import { jobApplicationReviewWorkspace } from "./jobApplicationReviewWorkspace.js";
+import { researchBriefWorkspace } from "./researchBriefWorkspace.js";
 
 describe("resolveWorkspace", () => {
   it("resolves the echo workspace by id", () => {
@@ -14,17 +15,24 @@ describe("resolveWorkspace", () => {
     );
   });
 
+  it("resolves the research-brief workspace by id", () => {
+    expect(resolveWorkspace("research-brief")).toBe(researchBriefWorkspace);
+  });
+
   it("returns undefined for an unknown workspace id", () => {
     expect(resolveWorkspace("does-not-exist")).toBeUndefined();
   });
 
-  it("has nonempty and distinct instructions for both workspaces", () => {
-    expect(echoWorkspace.instructions.length).toBeGreaterThan(0);
-    expect(jobApplicationReviewWorkspace.instructions.length).toBeGreaterThan(
-      0
-    );
-    expect(echoWorkspace.instructions).not.toBe(
-      jobApplicationReviewWorkspace.instructions
-    );
+  it("has nonempty and distinct instructions for all three workspaces", () => {
+    const instructions = [
+      echoWorkspace.instructions,
+      jobApplicationReviewWorkspace.instructions,
+      researchBriefWorkspace.instructions,
+    ];
+
+    for (const text of instructions) {
+      expect(text.length).toBeGreaterThan(0);
+    }
+    expect(new Set(instructions).size).toBe(instructions.length);
   });
 });

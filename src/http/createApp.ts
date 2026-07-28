@@ -1,14 +1,17 @@
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
 import type { AIProvider } from "../providers/AIProvider.js";
 import type { WorkspaceDefinition } from "../workspaces/WorkspaceDefinition.js";
+import type { WorkspacePublicMetadata } from "../workspaces/workspaceCatalog.js";
 import { mapHttpErrorToResponse, type HttpErrorCode } from "./mapErrorToResponse.js";
 import { createRunsRouteHandler } from "./runsRoute.js";
+import { createWorkspacesRouteHandler } from "./workspacesRoute.js";
 
 const MAX_BODY_SIZE = "16kb";
 
 export interface CreateAppDependencies {
   readonly resolveWorkspace: (id: string) => WorkspaceDefinition | undefined;
   readonly aiProvider: AIProvider;
+  readonly listWorkspaceCatalog: () => readonly WorkspacePublicMetadata[];
 }
 
 interface BodyParserError extends Error {
@@ -60,9 +63,10 @@ export function createApp(deps: CreateAppDependencies): Express {
   const app = express();
 
   const runsRouteHandler = createRunsRouteHandler(deps);
+  const workspacesRouteHandler = createWorkspacesRouteHandler(deps);
 
-  // Step 1-3 of the approved middleware ordering: media-type check, JSON
-  // body parsing (16kb limit, strict top-level shape), then the handler.
+  // Media-type check, JSON body parsing (16kb limit, strict top-level
+  // shape), then the handler.
   app.post(
     "/v1/runs",
     requireJsonContentType,
@@ -70,20 +74,28 @@ export function createApp(deps: CreateAppDependencies): Express {
     runsRouteHandler
   );
 
-  // Step 4: any other method on this same path.
+  // Any other method on this same path.
   app.all("/v1/runs", (_req: Request, res: Response) => {
     const { status, body } = mapHttpErrorToResponse("METHOD_NOT_ALLOWED");
     res.status(status).set("Allow", "POST").json(body);
   });
 
-  // Step 5: nothing else matched.
+  // Read-only catalog of user-facing workspaces — no body, no params.
+  app.get("/v1/workspaces", workspacesRouteHandler);
+
+  app.all("/v1/workspaces", (_req: Request, res: Response) => {
+    const { status, body } = mapHttpErrorToResponse("METHOD_NOT_ALLOWED");
+    res.status(status).set("Allow", "GET").json(body);
+  });
+
+  // Nothing else matched.
   app.use((_req: Request, res: Response) => {
     const { status, body } = mapHttpErrorToResponse("ROUTE_NOT_FOUND");
     res.status(status).json(body);
   });
 
-  // Step 6: final error-handling middleware — malformed JSON, oversized
-  // bodies, and any exception forwarded via next(error).
+  // Final error-handling middleware — malformed JSON, oversized bodies, and
+  // any exception forwarded via next(error).
   app.use((error: unknown, _req: Request, res: Response, next: NextFunction) => {
     if (res.headersSent) {
       next(error);

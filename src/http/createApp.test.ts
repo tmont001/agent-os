@@ -3,6 +3,7 @@ import supertest from "supertest";
 import { createApp } from "./createApp.js";
 import { FakeAIProvider } from "../providers/FakeAIProvider.js";
 import { resolveWorkspace } from "../workspaces/resolveWorkspace.js";
+import { listWorkspaceCatalog } from "../workspaces/workspaceCatalog.js";
 import type { AIProvider } from "../providers/AIProvider.js";
 
 /**
@@ -33,7 +34,7 @@ function throwingProviderDouble(): AIProvider {
 }
 
 function buildApp(aiProvider: AIProvider = new FakeAIProvider()) {
-  return createApp({ resolveWorkspace, aiProvider });
+  return createApp({ resolveWorkspace, aiProvider, listWorkspaceCatalog });
 }
 
 describe("createApp", () => {
@@ -105,7 +106,7 @@ describe("createApp", () => {
     it("rejects an unknown 'provider' field and never calls the provider (provider cannot be client-selected)", async () => {
       const provider = unavailableProviderDouble();
 
-      const response = await supertest(createApp({ resolveWorkspace, aiProvider: provider }))
+      const response = await supertest(createApp({ resolveWorkspace, aiProvider: provider, listWorkspaceCatalog }))
         .post("/v1/runs")
         .set("Content-Type", "application/json")
         .send({ workspaceId: "echo", input: "Hello", provider: "anthropic" });
@@ -130,7 +131,7 @@ describe("createApp", () => {
     it("returns 400 INVALID_INPUT for empty input and never calls the provider", async () => {
       const provider = unavailableProviderDouble();
 
-      const response = await supertest(createApp({ resolveWorkspace, aiProvider: provider }))
+      const response = await supertest(createApp({ resolveWorkspace, aiProvider: provider, listWorkspaceCatalog }))
         .post("/v1/runs")
         .set("Content-Type", "application/json")
         .send({ workspaceId: "echo", input: "" });
@@ -143,7 +144,7 @@ describe("createApp", () => {
     it("returns 400 INVALID_INPUT for whitespace-only input and never calls the provider", async () => {
       const provider = unavailableProviderDouble();
 
-      const response = await supertest(createApp({ resolveWorkspace, aiProvider: provider }))
+      const response = await supertest(createApp({ resolveWorkspace, aiProvider: provider, listWorkspaceCatalog }))
         .post("/v1/runs")
         .set("Content-Type", "application/json")
         .send({ workspaceId: "echo", input: "   " });
@@ -250,7 +251,7 @@ describe("createApp", () => {
     it("returns 404 WORKSPACE_NOT_FOUND for an unknown workspace and never calls the provider", async () => {
       const provider = unavailableProviderDouble();
 
-      const response = await supertest(createApp({ resolveWorkspace, aiProvider: provider }))
+      const response = await supertest(createApp({ resolveWorkspace, aiProvider: provider, listWorkspaceCatalog }))
         .post("/v1/runs")
         .set("Content-Type", "application/json")
         .send({ workspaceId: "does-not-exist", input: "Hello" });
@@ -264,6 +265,7 @@ describe("createApp", () => {
       const app = createApp({
         resolveWorkspace,
         aiProvider: new FakeAIProvider({ behavior: "failure" }),
+        listWorkspaceCatalog,
       });
 
       const response = await supertest(app)
@@ -277,7 +279,7 @@ describe("createApp", () => {
     });
 
     it("returns 503 PROVIDER_UNAVAILABLE for a test-local unavailable-provider double", async () => {
-      const app = createApp({ resolveWorkspace, aiProvider: unavailableProviderDouble() });
+      const app = createApp({ resolveWorkspace, aiProvider: unavailableProviderDouble(), listWorkspaceCatalog });
 
       const response = await supertest(app)
         .post("/v1/runs")
@@ -290,7 +292,7 @@ describe("createApp", () => {
     });
 
     it("returns 500 UNEXPECTED for a test-local throwing-provider double, without a stack trace", async () => {
-      const app = createApp({ resolveWorkspace, aiProvider: throwingProviderDouble() });
+      const app = createApp({ resolveWorkspace, aiProvider: throwingProviderDouble(), listWorkspaceCatalog });
 
       const response = await supertest(app)
         .post("/v1/runs")
@@ -336,7 +338,7 @@ describe("createApp", () => {
   describe("safety", () => {
     it("never leaks cause, stack traces, secrets, or prompt content in an error response", async () => {
       const secretLikeInput = "sk-ant-super-secret-should-not-leak";
-      const app = createApp({ resolveWorkspace, aiProvider: throwingProviderDouble() });
+      const app = createApp({ resolveWorkspace, aiProvider: throwingProviderDouble(), listWorkspaceCatalog });
 
       const response = await supertest(app)
         .post("/v1/runs")
@@ -348,6 +350,83 @@ describe("createApp", () => {
       expect(raw).not.toContain("cause");
       expect(raw).not.toMatch(/at .*\(.*:\d+:\d+\)/);
       expect(Object.keys(response.body.error)).toEqual(["code", "message", "retryable"]);
+    });
+  });
+
+  describe("GET /v1/workspaces", () => {
+    it("returns 200 with the deterministic public catalog", async () => {
+      const response = await supertest(buildApp()).get("/v1/workspaces");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        workspaces: [
+          {
+            id: "job-application-review",
+            displayName: "Job Application Review",
+            description: expect.any(String),
+          },
+          {
+            id: "research-brief",
+            displayName: "Research Brief",
+            description: expect.any(String),
+          },
+        ],
+      });
+    });
+
+    it("never includes the echo workspace", async () => {
+      const response = await supertest(buildApp()).get("/v1/workspaces");
+
+      expect(
+        (response.body.workspaces as Array<{ id: string }>).some((entry) => entry.id === "echo")
+      ).toBe(false);
+    });
+
+    it("exposes no instructions or other internal/execution fields", async () => {
+      const response = await supertest(buildApp()).get("/v1/workspaces");
+
+      for (const entry of response.body.workspaces as Array<Record<string, unknown>>) {
+        expect(Object.keys(entry).sort()).toEqual(["description", "displayName", "id"]);
+      }
+    });
+
+    it("returns the same order on repeated requests", async () => {
+      const app = buildApp();
+
+      const first = await supertest(app).get("/v1/workspaces");
+      const second = await supertest(app).get("/v1/workspaces");
+
+      expect(first.body).toEqual(second.body);
+    });
+
+    it("never calls the AI provider", async () => {
+      const provider = unavailableProviderDouble();
+
+      await supertest(createApp({ resolveWorkspace, aiProvider: provider, listWorkspaceCatalog })).get(
+        "/v1/workspaces"
+      );
+
+      expect(provider.generate).not.toHaveBeenCalled();
+    });
+
+    it("returns 405 METHOD_NOT_ALLOWED with an Allow: GET header for POST /v1/workspaces", async () => {
+      const response = await supertest(buildApp()).post("/v1/workspaces");
+
+      expect(response.status).toBe(405);
+      expect(response.body.error.code).toBe("METHOD_NOT_ALLOWED");
+      expect(response.headers["allow"]).toBe("GET");
+    });
+  });
+
+  describe("existing POST /v1/runs contract (unchanged by the catalog addition)", () => {
+    it("still returns 200 with the correct body for a valid Echo request", async () => {
+      const response = await supertest(buildApp())
+        .post("/v1/runs")
+        .set("Content-Type", "application/json")
+        .send({ workspaceId: "echo", input: "Hello" });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ output: "Echo: Hello" });
     });
   });
 });

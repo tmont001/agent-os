@@ -1,5 +1,6 @@
 import { createApp } from "./createApp.js";
 import { resolveWorkspace } from "../workspaces/resolveWorkspace.js";
+import { listWorkspaceCatalog } from "../workspaces/workspaceCatalog.js";
 import { FakeAIProvider } from "../providers/FakeAIProvider.js";
 import type { AIProvider } from "../providers/AIProvider.js";
 
@@ -73,7 +74,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  const app = createApp({ resolveWorkspace, aiProvider });
+  const app = createApp({ resolveWorkspace, aiProvider, listWorkspaceCatalog });
   const httpServer = app.listen(port, HOST, () => {
     process.stdout.write(`Agent OS HTTP server listening on http://${HOST}:${port}\n`);
   });
